@@ -42,9 +42,9 @@ CreateVariableGeneSet = function(ref_data,types,n) {
 #' @param do.main.types if TRUE runs a main cell type annotation using the main_types annotation.
 #' @param numCores Number of cores to use.
 #'
-#' @return a SingleR object object
+#' @return a SingleR objects
 SingleR.CreateObject <- function(sc.data,ref,clusters=NULL,species='Human',
-                                 citation='-',technology='-',variable.genes='sd',
+                                 citation='-',technology='-',variable.genes='de',
                                  fine.tune=T,do.main.types=T,
                                  numCores = SingleR.numCores) {
   types = ref$types
@@ -69,8 +69,8 @@ SingleR.CreateObject <- function(sc.data,ref,clusters=NULL,species='Human',
                            sd.thres = ref$sd.thres,genes = variable.genes,
                            fine.tune = fine.tune,numCores = numCores)
   
+  SingleR.single$clusters = SingleR.Cluster(SingleR.single,10)
   if (is.null(clusters)) {
-    SingleR.single$clusters = SingleR.Cluster(SingleR.single,10)
     clusters = SingleR.single$clusters$cl
   }
   
@@ -98,6 +98,7 @@ SingleR.CreateObject <- function(sc.data,ref,clusters=NULL,species='Human',
                                           numCores = numCores)
     singler$SingleR.single.main$clusters = 
       SingleR.Cluster(singler$SingleR.single.main,10)
+    
     singler$SingleR.clusters.main = 
       SingleR("cluster",sc.data,ref$data,types=types, 
               clusters=factor(clusters),sd.thres = ref$sd.thres, 
@@ -159,7 +160,7 @@ SingleR.CreateSeurat <- function(project.name,sc.data,min.genes = 200,
                                do.contour = F, do.plot = F)
     
     sc <- ScaleData(object = sc,use.umi=T)
-    sc <- RunPCA(object = sc, features = VariableFeatures(object = sc),verbose = FALSE)
+    sc <- RunPCA(object = sc, npcs = npca, features = VariableFeatures(object = sc),verbose = FALSE)
     sc <- FindNeighbors(object = sc, dims = 1:npca)
     sc <- FindClusters(object = sc,resolution = resolution)
     if (ncol(sc@assays$RNA@data)<100) {
@@ -178,7 +179,7 @@ SingleR.CreateSeurat <- function(project.name,sc.data,min.genes = 200,
     } else {
       sc <- ScaleData(object = sc)
     }
-    sc <- RunPCA(object = sc, pc.genes = sc@var.genes, do.print = FALSE)
+    sc <- RunPCA(object = sc, pcs.compute = npca, pc.genes = sc@var.genes, do.print = FALSE)
     #PCElbowPlot(object = sc)
     sc <- FindClusters(object = sc, reduction.type = "pca", 
                        dims.use = 1:npca,resolution = resolution, 
@@ -592,8 +593,17 @@ SingleR.Combine = function(singler.list,order=NULL,clusters=NULL,expr=NULL,
       singler$singler[[j]]$SingleR.single$cell.names =  
         c(singler$singler[[j]]$SingleR.single$cell.names,singler.list[[i]]$singler[[j]]$SingleR.single$cell.names)
       singler$singler[[j]]$SingleR.single.main$cell.names =  
-        c(singler$singler[[j]]$SingleR.single$cell.names,singler.list[[i]]$singler[[j]]$SingleR.single.main$cell.names)
+        c(singler$singler[[j]]$SingleR.single.main$cell.names,singler.list[[i]]$singler[[j]]$SingleR.single.main$cell.names)
       
+      if (!is.null(singler$singler[[j]]$SingleR.single.main$pval)) {
+        singler$singler[[j]]$SingleR.single.main$pval =  
+          rbind(singler$singler[[j]]$SingleR.single.main$pval,singler.list[[i]]$singler[[j]]$SingleR.single.main$pval)
+      }
+      
+      if (!is.null(singler$singler[[j]]$SingleR.single$pval)) {
+        singler$singler[[j]]$SingleR.single$pval =  
+          rbind(singler$singler[[j]]$SingleR.single$pval,singler.list[[i]]$singler[[j]]$SingleR.single$pval)
+      }
     }
     singler$meta.data$project.name = paste(singler$meta.data$project.name,singler.list[[i]]$meta.data$project.name,sep='+')
     singler$meta.data$orig.ident = c(singler$meta.data$orig.ident,singler.list[[i]]$meta.data$orig.ident)
